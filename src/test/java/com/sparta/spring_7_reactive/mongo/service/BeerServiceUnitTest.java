@@ -226,186 +226,175 @@ public class BeerServiceUnitTest {
             }
         }
 
+
         @Nested
-        class FindAllBeersByBeerStyleTest {
+        class FindAllBeersByBeerStyleTests {
 
-            @Mock
-            BeerRepository beerRepository;
+            @Test
+            @DisplayName("Given valid style when findAllBeersByBeerStyle then return mapped dto flux")
+            void givenValidStyle_whenFindAllBeersByBeerStyle_thenReturnMappedDtoFlux() {
+                // given
+                // Prepare two Beer entities that match the requested style.
+                Beer beer1 = Beer.builder()
+                        .beerId("beer-1")
+                        .beerName("Galaxy Cat")
+                        .beerStyle("IPA")
+                        .price(BigDecimal.valueOf(10.00))
+                        .build();
 
-            @Mock
-            BeerMapper beerMapper;
+                Beer beer2 = Beer.builder()
+                        .beerId("beer-2")
+                        .beerName("Hazy Sky")
+                        .beerStyle("ipa")
+                        .price(BigDecimal.valueOf(12.50))
+                        .build();
 
-            @InjectMocks
-            BeerServiceImpl beerService;
+                // Prepare their DTO equivalents.
+                BeerDTO dto1 = BeerDTO.builder()
+                        .beerId("beer-1")
+                        .beerName("Galaxy Cat")
+                        .beerStyle("IPA")
+                        .price(BigDecimal.valueOf(10.00))
+                        .build();
 
-            @Nested
-            class FindAllBeersByBeerStyleTests {
+                BeerDTO dto2 = BeerDTO.builder()
+                        .beerId("beer-2")
+                        .beerName("Hazy Sky")
+                        .beerStyle("ipa")
+                        .price(BigDecimal.valueOf(12.50))
+                        .build();
 
-                @Test
-                @DisplayName("Given valid style when findAllBeersByBeerStyle then return mapped dto flux")
-                void givenValidStyle_whenFindAllBeersByBeerStyle_thenReturnMappedDtoFlux() {
-                    // given
-                    // Prepare two Beer entities that match the requested style.
-                    Beer beer1 = Beer.builder()
-                            .beerId("beer-1")
-                            .beerName("Galaxy Cat")
-                            .beerStyle("IPA")
-                            .price(BigDecimal.valueOf(10.00))
-                            .build();
+                // Mock repository and mapper behavior.
+                when(beerRepository.findAllByBeerStyleIgnoreCase("IPA"))
+                        .thenReturn(Flux.just(beer1, beer2));
 
-                    Beer beer2 = Beer.builder()
-                            .beerId("beer-2")
-                            .beerName("Hazy Sky")
-                            .beerStyle("ipa")
-                            .price(BigDecimal.valueOf(12.50))
-                            .build();
+                when(beerMapper.beerToBeerDto(beer1)).thenReturn(dto1);
+                when(beerMapper.beerToBeerDto(beer2)).thenReturn(dto2);
 
-                    // Prepare their DTO equivalents.
-                    BeerDTO dto1 = BeerDTO.builder()
-                            .beerId("beer-1")
-                            .beerName("Galaxy Cat")
-                            .beerStyle("IPA")
-                            .price(BigDecimal.valueOf(10.00))
-                            .build();
-
-                    BeerDTO dto2 = BeerDTO.builder()
-                            .beerId("beer-2")
-                            .beerName("Hazy Sky")
-                            .beerStyle("ipa")
-                            .price(BigDecimal.valueOf(12.50))
-                            .build();
-
-                    // Mock repository and mapper behavior.
-                    when(beerRepository.findAllByBeerStyleIgnoreCase("IPA"))
-                            .thenReturn(Flux.just(beer1, beer2));
-
-                    when(beerMapper.beerToBeerDto(beer1)).thenReturn(dto1);
-                    when(beerMapper.beerToBeerDto(beer2)).thenReturn(dto2);
-
-                    // when + then
-                    // Verify the service emits both mapped DTOs and completes normally.
-                    StepVerifier.create(beerService.findAllBeersByBeerStyle("IPA"))
-                            .expectNext(dto1)
-                            .expectNext(dto2)
-                            .verifyComplete();
-                }
-
-                @Test
-                @DisplayName("Given valid style with no matches when findAllBeersByBeerStyle then return empty flux")
-                void givenValidStyleWithNoMatches_whenFindAllBeersByBeerStyle_thenReturnEmptyFlux() {
-                    // given
-                    // Mock repository to emit no beers.
-                    when(beerRepository.findAllByBeerStyleIgnoreCase("STOUT"))
-                            .thenReturn(Flux.empty());
-
-                    // when + then
-                    // The service should return an empty Flux and complete without error.
-                    StepVerifier.create(beerService.findAllBeersByBeerStyle("STOUT"))
-                            .verifyComplete();
-
-                    // Mapper should never be called because there are no beers to map.
-                    verifyNoInteractions(beerMapper);
-                }
-
-                @Test
-                @DisplayName("Given all beers requested when findAllBeers then return all mapped dto items")
-                void givenAllBeersRequested_whenFindAllBeers_thenReturnAllMappedDtoItems() {
-                    // given
-                    Beer beer1 = Beer.builder().beerId("beer-1").beerName("Galaxy Cat").beerStyle("IPA").build();
-                    Beer beer2 = Beer.builder().beerId("beer-2").beerName("Dark Peak").beerStyle("STOUT").build();
-                    Beer beer3 = Beer.builder().beerId("beer-3").beerName("Golden Day").beerStyle("LAGER").build();
-
-                    BeerDTO dto1 = BeerDTO.builder().beerId("beer-1").beerName("Galaxy Cat").beerStyle("IPA").build();
-                    BeerDTO dto2 = BeerDTO.builder().beerId("beer-2").beerName("Dark Peak").beerStyle("STOUT").build();
-                    BeerDTO dto3 = BeerDTO.builder().beerId("beer-3").beerName("Golden Day").beerStyle("LAGER").build();
-
-                    when(beerRepository.findAll()).thenReturn(Flux.just(beer1, beer2, beer3));
-                    when(beerMapper.beerToBeerDto(beer1)).thenReturn(dto1);
-                    when(beerMapper.beerToBeerDto(beer2)).thenReturn(dto2);
-                    when(beerMapper.beerToBeerDto(beer3)).thenReturn(dto3);
-
-                    // when + then
-                    StepVerifier.create(beerService.findAllBeers())
-                            .expectNext(dto1)
-                            .expectNext(dto2)
-                            .expectNext(dto3)
-                            .verifyComplete();
-                }
-
-                @Test
-                @DisplayName("Given repository error when findAllBeersByBeerStyle then propagate error")
-                void givenRepositoryError_whenFindAllBeersByBeerStyle_thenPropagateError() {
-                    // given
-                    when(beerRepository.findAllByBeerStyleIgnoreCase("IPA"))
-                            .thenReturn(Flux.error(new RuntimeException("DB error")));
-
-                    // when + then
-                    // Verify the service does not swallow the repository failure.
-                    StepVerifier.create(beerService.findAllBeersByBeerStyle("IPA"))
-                            .expectError(RuntimeException.class)
-                            .verify();
-                }
-
-                @Test
-                @DisplayName("Given two matching beers when findAllBeersByBeerStyle then call mapper once per beer")
-                void givenTwoMatchingBeers_whenFindAllBeersByBeerStyle_thenCallMapperOncePerBeer() {
-                    // given
-                    Beer beer1 = Beer.builder().beerId("beer-1").beerName("Galaxy Cat").beerStyle("IPA").build();
-                    Beer beer2 = Beer.builder().beerId("beer-2").beerName("Hazy Sky").beerStyle("IPA").build();
-
-                    BeerDTO dto1 = BeerDTO.builder().beerId("beer-1").beerName("Galaxy Cat").beerStyle("IPA").build();
-                    BeerDTO dto2 = BeerDTO.builder().beerId("beer-2").beerName("Hazy Sky").beerStyle("IPA").build();
-
-                    when(beerRepository.findAllByBeerStyleIgnoreCase("IPA"))
-                            .thenReturn(Flux.just(beer1, beer2));
-
-                    when(beerMapper.beerToBeerDto(beer1)).thenReturn(dto1);
-                    when(beerMapper.beerToBeerDto(beer2)).thenReturn(dto2);
-
-                    // when
-                    StepVerifier.create(beerService.findAllBeersByBeerStyle("IPA"))
-                            .expectNext(dto1)
-                            .expectNext(dto2)
-                            .verifyComplete();
-
-                    // then
-                    // Verify mapper interaction count.
-                    verify(beerMapper, times(1)).beerToBeerDto(beer1);
-                    verify(beerMapper, times(1)).beerToBeerDto(beer2);
-                }
-
-                @Test
-                @DisplayName("Given null style when findAllBeersByBeerStyle then emit bad request error")
-                void givenNullStyle_whenFindAllBeersByBeerStyle_thenEmitBadRequestError() {
-                    // when + then
-                    StepVerifier.create(beerService.findAllBeersByBeerStyle(null))
-                            .expectErrorSatisfies(error -> {
-                                assertThat(error).isInstanceOf(ResponseStatusException.class);
-                                ResponseStatusException ex = (ResponseStatusException) error;
-                                assertThat(ex.getStatusCode().value()).isEqualTo(400);
-                            })
-                            .verify();
-
-                    verifyNoInteractions(beerRepository);
-                    verifyNoInteractions(beerMapper);
-                }
-
-                @Test
-                @DisplayName("Given blank style when findAllBeersByBeerStyle then emit bad request error")
-                void givenBlankStyle_whenFindAllBeersByBeerStyle_thenEmitBadRequestError() {
-                    // when + then
-                    StepVerifier.create(beerService.findAllBeersByBeerStyle("   "))
-                            .expectErrorSatisfies(error -> {
-                                assertThat(error).isInstanceOf(ResponseStatusException.class);
-                                ResponseStatusException ex = (ResponseStatusException) error;
-                                assertThat(ex.getStatusCode().value()).isEqualTo(400);
-                            })
-                            .verify();
-
-                    verifyNoInteractions(beerRepository);
-                    verifyNoInteractions(beerMapper);
-                }
+                // when + then
+                // Verify the service emits both mapped DTOs and completes normally.
+                StepVerifier.create(beerService.findAllBeersByBeerStyle("IPA"))
+                        .expectNext(dto1)
+                        .expectNext(dto2)
+                        .verifyComplete();
             }
+
+            @Test
+            @DisplayName("Given valid style with no matches when findAllBeersByBeerStyle then return empty flux")
+            void givenValidStyleWithNoMatches_whenFindAllBeersByBeerStyle_thenReturnEmptyFlux() {
+                // given
+                // Mock repository to emit no beers.
+                when(beerRepository.findAllByBeerStyleIgnoreCase("STOUT"))
+                        .thenReturn(Flux.empty());
+
+                // when + then
+                // The service should return an empty Flux and complete without error.
+                StepVerifier.create(beerService.findAllBeersByBeerStyle("STOUT"))
+                        .verifyComplete();
+
+                // Mapper should never be called because there are no beers to map.
+                verifyNoInteractions(beerMapper);
+            }
+
+            @Test
+            @DisplayName("Given all beers requested when findAllBeers then return all mapped dto items")
+            void givenAllBeersRequested_whenFindAllBeers_thenReturnAllMappedDtoItems() {
+                // given
+                Beer beer1 = Beer.builder().beerId("beer-1").beerName("Galaxy Cat").beerStyle("IPA").build();
+                Beer beer2 = Beer.builder().beerId("beer-2").beerName("Dark Peak").beerStyle("STOUT").build();
+                Beer beer3 = Beer.builder().beerId("beer-3").beerName("Golden Day").beerStyle("LAGER").build();
+
+                BeerDTO dto1 = BeerDTO.builder().beerId("beer-1").beerName("Galaxy Cat").beerStyle("IPA").build();
+                BeerDTO dto2 = BeerDTO.builder().beerId("beer-2").beerName("Dark Peak").beerStyle("STOUT").build();
+                BeerDTO dto3 = BeerDTO.builder().beerId("beer-3").beerName("Golden Day").beerStyle("LAGER").build();
+
+                when(beerRepository.findAll()).thenReturn(Flux.just(beer1, beer2, beer3));
+                when(beerMapper.beerToBeerDto(beer1)).thenReturn(dto1);
+                when(beerMapper.beerToBeerDto(beer2)).thenReturn(dto2);
+                when(beerMapper.beerToBeerDto(beer3)).thenReturn(dto3);
+
+                // when + then
+                StepVerifier.create(beerService.findAllBeers())
+                        .expectNext(dto1)
+                        .expectNext(dto2)
+                        .expectNext(dto3)
+                        .verifyComplete();
+            }
+
+            @Test
+            @DisplayName("Given repository error when findAllBeersByBeerStyle then propagate error")
+            void givenRepositoryError_whenFindAllBeersByBeerStyle_thenPropagateError() {
+                // given
+                when(beerRepository.findAllByBeerStyleIgnoreCase("IPA"))
+                        .thenReturn(Flux.error(new RuntimeException("DB error")));
+
+                // when + then
+                // Verify the service does not swallow the repository failure.
+                StepVerifier.create(beerService.findAllBeersByBeerStyle("IPA"))
+                        .expectError(RuntimeException.class)
+                        .verify();
+            }
+
+            @Test
+            @DisplayName("Given two matching beers when findAllBeersByBeerStyle then call mapper once per beer")
+            void givenTwoMatchingBeers_whenFindAllBeersByBeerStyle_thenCallMapperOncePerBeer() {
+                // given
+                Beer beer1 = Beer.builder().beerId("beer-1").beerName("Galaxy Cat").beerStyle("IPA").build();
+                Beer beer2 = Beer.builder().beerId("beer-2").beerName("Hazy Sky").beerStyle("IPA").build();
+
+                BeerDTO dto1 = BeerDTO.builder().beerId("beer-1").beerName("Galaxy Cat").beerStyle("IPA").build();
+                BeerDTO dto2 = BeerDTO.builder().beerId("beer-2").beerName("Hazy Sky").beerStyle("IPA").build();
+
+                when(beerRepository.findAllByBeerStyleIgnoreCase("IPA"))
+                        .thenReturn(Flux.just(beer1, beer2));
+
+                when(beerMapper.beerToBeerDto(beer1)).thenReturn(dto1);
+                when(beerMapper.beerToBeerDto(beer2)).thenReturn(dto2);
+
+                // when
+                StepVerifier.create(beerService.findAllBeersByBeerStyle("IPA"))
+                        .expectNext(dto1)
+                        .expectNext(dto2)
+                        .verifyComplete();
+
+                // then
+                // Verify mapper interaction count.
+                verify(beerMapper, times(1)).beerToBeerDto(beer1);
+                verify(beerMapper, times(1)).beerToBeerDto(beer2);
+            }
+
+            @Test
+            @DisplayName("Given null style when findAllBeersByBeerStyle then emit bad request error")
+            void givenNullStyle_whenFindAllBeersByBeerStyle_thenEmitBadRequestError() {
+                // when + then
+                StepVerifier.create(beerService.findAllBeersByBeerStyle(null))
+                        .expectErrorSatisfies(error -> {
+                            assertThat(error).isInstanceOf(ResponseStatusException.class);
+                            ResponseStatusException ex = (ResponseStatusException) error;
+                            assertThat(ex.getStatusCode().value()).isEqualTo(400);
+                        })
+                        .verify();
+
+                verifyNoInteractions(beerRepository);
+                verifyNoInteractions(beerMapper);
+            }
+
+            @Test
+            @DisplayName("Given blank style when findAllBeersByBeerStyle then emit bad request error")
+            void givenBlankStyle_whenFindAllBeersByBeerStyle_thenEmitBadRequestError() {
+                // when + then
+                StepVerifier.create(beerService.findAllBeersByBeerStyle("   "))
+                        .expectErrorSatisfies(error -> {
+                            assertThat(error).isInstanceOf(ResponseStatusException.class);
+                            ResponseStatusException ex = (ResponseStatusException) error;
+                            assertThat(ex.getStatusCode().value()).isEqualTo(400);
+                        })
+                        .verify();
+
+                verifyNoInteractions(beerRepository);
+                verifyNoInteractions(beerMapper);
+            }
+
         }
 
         @Test
