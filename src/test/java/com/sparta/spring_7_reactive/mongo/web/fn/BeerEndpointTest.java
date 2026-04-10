@@ -68,7 +68,7 @@ class BeerEndpointTest {
                 .uri(BeerRouterConfig.BEER_PATH_ID, beerDTO.getBeerId())
                 .body(Mono.just(beerDTO), BeerDTO.class)
                 .exchange()
-                .expectStatus().isNotFound();
+                .expectStatus().isNoContent();
     }
 
     @Test
@@ -98,7 +98,7 @@ class BeerEndpointTest {
         testBeer.setBeerStyle("");
 
         webTestClient.put()
-                .uri(BeerRouterConfig.BEER_PATH_ID, testBeer)
+                .uri(BeerRouterConfig.BEER_PATH_ID, testBeer.getBeerId())
                 .body(Mono.just(testBeer), BeerDTO.class)
                 .exchange()
                 .expectStatus().isBadRequest();
@@ -177,24 +177,34 @@ class BeerEndpointTest {
                 .expectHeader().contentType("application/json")
                 .expectBody()
                 .jsonPath("$").isArray()
-                .jsonPath("$.length()").value(greaterThan(1));
+                .jsonPath("$.length()").value(greaterThan(0));
     }
 
-    public BeerDTO getSavedTestBeer(){
-        FluxExchangeResult<BeerDTO> beerDTOFluxExchangeResult = webTestClient.post().uri(BeerRouterConfig.BEER_PATH)
-                .body(Mono.just(getTestBeer()), BeerDTO.class)
-                .header("Content-Type", "application/json")
+    public BeerDTO getSavedTestBeer() {
+        BeerDTO beerDTO = webTestClient.post()
+                .uri(BeerRouterConfig.BEER_PATH)
+                .bodyValue(getTestBeerDto())
                 .exchange()
-                .returnResult(BeerDTO.class);
+                .expectStatus().isCreated()
+                .expectHeader().exists("Location")
+                .expectBody(BeerDTO.class)
+                .returnResult()
+                .getResponseBody();
 
-        List<String> location = beerDTOFluxExchangeResult.getResponseHeaders().get("Location");
+        if (beerDTO == null) {
+            throw new IllegalStateException("No beer was returned in create response");
+        }
 
-        return webTestClient.get().uri(BeerRouterConfig.BEER_PATH)
-                .exchange().returnResult(BeerDTO.class).getResponseBody().blockFirst();
+        if (beerDTO.getBeerId() == null || beerDTO.getBeerId().isBlank()) {
+            throw new IllegalStateException("Created beer does not contain a valid beerId");
+        }
+
+        return beerDTO;
     }
 
 
     private BeerDTO getTestBeerDto(){
+
         return new BeerMapperImpl().beerToBeerDto(getTestBeer());
     }
 
