@@ -138,7 +138,19 @@
 			<artifactId>spring-security-oauth2-client</artifactId>
 			<scope>test</scope>
 		</dependency>
-
+		<!-- Mockito Core -->
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<version>5.15.2</version>
+			<scope>test</scope>
+		</dependency>
+		<!--  JOSE (JavaScript Object Signing and Encryption)  -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-jose</artifactId>
+			<version>6.4.2</version>
+		</dependency>
 	</dependencies>
 
 	<build>
