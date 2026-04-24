@@ -1,81 +1,91 @@
 package com.sparta.spring_7_reactive.mongo.web.fn;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-
-import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
-import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
-
 import com.sparta.spring_7_reactive.mongo.domain.Beer;
 import com.sparta.spring_7_reactive.mongo.mapper.BeerMapperImpl;
 import com.sparta.spring_7_reactive.mongo.model.BeerDTO;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
-
 import java.math.BigDecimal;
-
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
+
+// ---
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.context.ApplicationContext;
+
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockJwt;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.springSecurity;
 
 /*
  * Author: M
  * Date: 10-Apr-26
  * Project Name: mongo
- * Description: Integration tests for Beer functional endpoints using WebTestClient, Testcontainers, and Spring Security test support.
+ * Description: Integration tests for Beer functional endpoints using WebTestClient,
+ * Testcontainers, and reactive Spring Security test support.
  */
 @Testcontainers
 @SpringBootTest
 @AutoConfigureWebTestClient
-@ExtendWith(MockitoExtension.class)
 class BeerEndpointTest {
 
-    @Mock
-    private JwtDecoder jwtDecoder;
-
+    /**
+     * Testcontainers-managed MongoDB instance automatically wired into Spring Boot
+     * through @ServiceConnection.
+     */
     @Container
     @ServiceConnection
     static MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:latest");
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+
+    /**
+     * Spring-managed reactive test client used to exercise the real HTTP layer.
+     */
     private WebTestClient webTestClient;
 
     @BeforeEach
     void setUp() {
-        // SecurityContextHolder.clearContext();
+        this.webTestClient = WebTestClient
+                .bindToApplicationContext(this.applicationContext)
+                .apply(springSecurity())
+                .configureClient()
+                .build();
     }
-    @Autowired
-    private MockMvc mockMvc;
-    @Test
-    void testWithMockJwt() throws Exception {
-        mockMvc.perform(get("/api/secure-endpoint")
-                        .with(jwt() // Mocks the JWT authentication
-                                .jwt(builder -> builder.subject("test-user")) // Customize claims
-                                .authorities(new SimpleGrantedAuthority("SCOPE_read")))) // Customize roles/scopes
-                .andExpect(status().isOk());
-    }
+    /**
+     * Mocked reactive JWT decoder bean for the Spring test context.
+     *
+     * Why this is needed:
+     * - the application is configured as an OAuth2 resource server with JWT support
+     * - in WebFlux tests, Spring Security expects a ReactiveJwtDecoder bean
+     * - @MockitoBean replaces the bean inside the Spring context for the test slice
+     *
+     * Note:
+     * The actual request authentication in these tests is supplied by mockJwt().
+     * This bean exists to satisfy the reactive resource server infrastructure.
+     */
+    //@MockitoBean
+    //private ReactiveJwtDecoder jwtDecoder;
 
     /**
      * Given a valid beer payload,
-     * when the client creates a beer as an authenticated user with csrf,
-     * then the API should return 201 Created with Location header and created beer body.
+     * when the client creates a beer as an authenticated user with csrf protection satisfied,
+     * then the API should return 201 Created with a Location header and created beer body.
      */
     @Test
     @DisplayName("given valid beer payload when create beer then return created beer")
@@ -86,7 +96,7 @@ class BeerEndpointTest {
                 .bodyValue(getTestBeerDto())
                 .exchange()
                 .expectStatus().isCreated()
-                .expectHeader().exists("Location")
+                .expectHeader().exists(HttpHeaders.LOCATION)
                 .expectHeader().contentType(MediaType.APPLICATION_JSON)
                 .expectBody()
                 .jsonPath("$.beerId").isNotEmpty()
@@ -98,7 +108,7 @@ class BeerEndpointTest {
 
     /**
      * Given an invalid beer payload,
-     * when the client creates a beer as an authenticated user with csrf,
+     * when the client creates a beer as an authenticated user with csrf protection satisfied,
      * then the API should return 400 Bad Request with an error body.
      */
     @Test
@@ -120,8 +130,8 @@ class BeerEndpointTest {
 
     /**
      * Given malformed JSON,
-     * when the client creates a beer as an authenticated user with csrf,
-     * then the API should return 400 Bad Request with a standard malformed JSON message.
+     * when the client creates a beer as an authenticated user with csrf protection satisfied,
+     * then the API should return 400 Bad Request with the standard malformed JSON message.
      */
     @Test
     @DisplayName("given malformed json when create beer then return bad request")
@@ -418,7 +428,7 @@ class BeerEndpointTest {
 
     /**
      * Given a valid payload and an existing beer id,
-     * when the client updates the beer as an authenticated user with csrf,
+     * when the client updates the beer as an authenticated user with csrf protection satisfied,
      * then the API should return 200 OK with the updated beer body.
      */
     @Test
@@ -443,7 +453,7 @@ class BeerEndpointTest {
 
     /**
      * Given an invalid payload,
-     * when the client updates the beer as an authenticated user with csrf,
+     * when the client updates the beer as an authenticated user with csrf protection satisfied,
      * then the API should return 400 Bad Request with an error body.
      */
     @Test
@@ -465,7 +475,7 @@ class BeerEndpointTest {
 
     /**
      * Given a valid payload and a missing beer id,
-     * when the client updates the beer as an authenticated user with csrf,
+     * when the client updates the beer as an authenticated user with csrf protection satisfied,
      * then the API should return 404 Not Found.
      */
     @Test
@@ -483,7 +493,7 @@ class BeerEndpointTest {
 
     /**
      * Given malformed JSON,
-     * when the client updates the beer as an authenticated user with csrf,
+     * when the client updates the beer as an authenticated user with csrf protection satisfied,
      * then the API should return 400 Bad Request with the standard malformed JSON message.
      */
     @Test
@@ -514,7 +524,7 @@ class BeerEndpointTest {
 
     /**
      * Given a partial payload and an existing beer id,
-     * when the client patches the beer as an authenticated user with csrf,
+     * when the client patches the beer as an authenticated user with csrf protection satisfied,
      * then the API should return 200 OK with the updated beer body.
      */
     @Test
@@ -539,7 +549,7 @@ class BeerEndpointTest {
 
     /**
      * Given a partial payload and a missing beer id,
-     * when the client patches the beer as an authenticated user with csrf,
+     * when the client patches the beer as an authenticated user with csrf protection satisfied,
      * then the API should return 404 Not Found.
      */
     @Test
@@ -558,7 +568,7 @@ class BeerEndpointTest {
 
     /**
      * Given malformed JSON,
-     * when the client patches the beer as an authenticated user with csrf,
+     * when the client patches the beer as an authenticated user with csrf protection satisfied,
      * then the API should return 400 Bad Request with the standard malformed JSON message.
      */
     @Test
@@ -585,7 +595,7 @@ class BeerEndpointTest {
 
     /**
      * Given an existing beer id,
-     * when the client deletes the beer as an authenticated user with csrf,
+     * when the client deletes the beer as an authenticated user with csrf protection satisfied,
      * then the API should return 200 OK with the deleted beer body.
      */
     @Test
@@ -605,7 +615,7 @@ class BeerEndpointTest {
 
     /**
      * Given an existing beer id,
-     * when the client deletes the beer as an authenticated user with csrf,
+     * when the client deletes the beer as an authenticated user with csrf protection satisfied,
      * then the resource should no longer be retrievable.
      */
     @Test
@@ -626,7 +636,7 @@ class BeerEndpointTest {
 
     /**
      * Given a missing beer id,
-     * when the client deletes the beer as an authenticated user with csrf,
+     * when the client deletes the beer as an authenticated user with csrf protection satisfied,
      * then the API should return 404 Not Found.
      */
     @Test
@@ -639,8 +649,13 @@ class BeerEndpointTest {
     }
 
     /**
-     * Creates a beer through the public POST endpoint using an authenticated client with csrf
-     * and returns the created resource.
+     * Creates a beer through the secured POST endpoint using an authenticated client
+     * with csrf protection satisfied and returns the created resource.
+     *
+     * Why this helper exists:
+     * - many tests require a persisted beer first
+     * - centralizing the setup keeps tests shorter and more focused
+     * - the assertions here verify that the create flow is healthy before downstream tests continue
      */
     private BeerDTO saveTestBeer() {
         BeerDTO savedBeer = authenticatedClientWithCsrf().post()
@@ -649,7 +664,7 @@ class BeerEndpointTest {
                 .bodyValue(getTestBeerDto())
                 .exchange()
                 .expectStatus().isCreated()
-                .expectHeader().exists("Location")
+                .expectHeader().exists(HttpHeaders.LOCATION)
                 .expectHeader().contentType(MediaType.APPLICATION_JSON)
                 .expectBody(BeerDTO.class)
                 .returnResult()
@@ -668,18 +683,42 @@ class BeerEndpointTest {
 
     /**
      * Returns a WebTestClient configured with a mocked authenticated JWT.
-     * Use this for safe requests such as GET.
+     *
+     * Use this helper for safe requests such as GET.
+     *
+     * Notes:
+     * - this application is secured as an OAuth2 resource server
+     * - in tests, mockJwt() simulates a successfully authenticated JWT request
+     * - explicit claims make the test principal easier to inspect while debugging
      */
     private WebTestClient authenticatedClient() {
-        return webTestClient.mutateWith(mockJwt());
+        return webTestClient.mutateWith(
+                mockJwt().jwt(jwt -> jwt
+                        .subject("test-user")
+                        .claim("scope", "beer.read beer.write")
+                )
+        );
     }
 
     /**
-     * Returns a WebTestClient configured with a mocked authenticated JWT and csrf token.
-     * Use this for state-changing requests such as POST, PUT, PATCH, and DELETE.
+     * Returns a WebTestClient configured with a mocked authenticated JWT
+     * plus a CSRF token.
+     *
+     * Use this helper for state-changing requests such as POST, PUT, PATCH, and DELETE.
+     *
+     * Why this helper exists:
+     * - mockJwt() satisfies authentication for the resource server
+     * - csrf() satisfies CSRF protection for unsafe HTTP methods
+     * - a 403 on POST/PUT/PATCH/DELETE usually means authentication succeeded
+     *   but CSRF protection rejected the request
      */
     private WebTestClient authenticatedClientWithCsrf() {
-        return webTestClient.mutateWith(mockJwt()).mutateWith(csrf());
+        return webTestClient.mutateWith(
+                mockJwt().jwt(jwt -> jwt
+                        .subject("test-user")
+                        .claim("scope", "beer.read beer.write")
+                )
+        ).mutateWith(csrf());
     }
 
     /**
@@ -702,4 +741,3 @@ class BeerEndpointTest {
                 .build();
     }
 }
-
