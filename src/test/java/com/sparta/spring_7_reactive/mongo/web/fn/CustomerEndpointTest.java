@@ -1,17 +1,18 @@
 package com.sparta.spring_7_reactive.mongo.web.fn;
 
-
 import com.sparta.spring_7_reactive.mongo.domain.Customer;
 
 import com.sparta.spring_7_reactive.mongo.mapper.CustomerMapper;
 
 import com.sparta.spring_7_reactive.mongo.model.CustomerDTO;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -19,6 +20,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.*;
+
 
 /*
  * Author: M
@@ -32,6 +35,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 public class CustomerEndpointTest {
 
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+
     @Container
     @ServiceConnection
     static MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:latest");
@@ -43,6 +51,15 @@ public class CustomerEndpointTest {
     private CustomerMapper customerMapper;
 
 
+    @BeforeEach
+    void setUp() {
+        this.webTestClient = WebTestClient
+                .bindToApplicationContext(this.applicationContext)
+                .apply(springSecurity())
+                .configureClient()
+                .build();
+    }
+
     /**
      * Given a valid customer payload,
      * when the client creates a customer,
@@ -51,7 +68,7 @@ public class CustomerEndpointTest {
     @Test
     @DisplayName("given valid customer payload when create beer then return created customer")
     void givenValidCustomerPayload_whenCreateCustomer_thenReturnCreatedCustomer() {
-        webTestClient.post()
+        authenticatedClientWithCsrf().post()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(getTestCustomerDto())
@@ -76,7 +93,7 @@ public class CustomerEndpointTest {
         CustomerDTO invalidCustomer = getTestCustomerDto();
         invalidCustomer.setCustomerName("");
 
-        webTestClient.post()
+        authenticatedClientWithCsrf().post()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(invalidCustomer)
@@ -102,7 +119,7 @@ public class CustomerEndpointTest {
             }
             """;
 
-        webTestClient.post()
+        authenticatedClientWithCsrf().post()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(malformedJson)
@@ -123,7 +140,7 @@ public class CustomerEndpointTest {
     void givenExistingCustomerId_whenGetCustomerById_thenReturnCustomer() {
         CustomerDTO savedCustomer = saveTestCustomer();
 
-        webTestClient.get()
+        authenticatedClient().get()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, savedCustomer.getCustomerId())
                 .exchange()
                 .expectStatus().isOk()
@@ -142,7 +159,7 @@ public class CustomerEndpointTest {
     @Test
     @DisplayName("given missing customer id when get customer by id then return not found")
     void givenMissingCustomerId_whenGetCustomerById_thenReturnNotFound() {
-        webTestClient.get()
+        authenticatedClient().get()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, "missing-id")
                 .exchange()
                 .expectStatus().isNotFound();
@@ -158,7 +175,7 @@ public class CustomerEndpointTest {
     void givenCustomersInDatabase_whenListCustomers_thenReturnCustomerCollection() {
         saveTestCustomer();
 
-        webTestClient.get()
+        authenticatedClient().get()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH)
                 .exchange()
                 .expectStatus().isOk()
@@ -179,7 +196,7 @@ public class CustomerEndpointTest {
     void givenCustomerNameFilter_whenListCustomers_thenReturnMatchingCustomers() {
         saveTestCustomer();
 
-        webTestClient.get()
+        authenticatedClient().get()
                 .uri(uriBuilder -> uriBuilder
                         .path(CustomerRouterConfig.CUSTOMER_PATH)
                         .queryParam("customerName", "Martin")
@@ -204,7 +221,7 @@ public class CustomerEndpointTest {
     void givenCustomerJobFilter_whenListCustomers_thenReturnMatchingCustomers() {
         saveTestCustomer();
 
-        webTestClient.get()
+        authenticatedClient().get()
                 .uri(uriBuilder -> uriBuilder
                         .path(CustomerRouterConfig.CUSTOMER_PATH)
                         .queryParam("customerJob", "Software Architect")
@@ -231,7 +248,7 @@ public class CustomerEndpointTest {
         savedCustomer.setCustomerName("Updated Space Dust");
         savedCustomer.setCustomerJob("Double IPA");
 
-        webTestClient.put()
+        authenticatedClientWithCsrf().put()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, savedCustomer.getCustomerId())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(savedCustomer)
@@ -255,7 +272,7 @@ public class CustomerEndpointTest {
         CustomerDTO savedCustomer = saveTestCustomer();
         savedCustomer.setCustomerJob("");
 
-        webTestClient.put()
+        authenticatedClientWithCsrf().put()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, savedCustomer.getCustomerId())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(savedCustomer)
@@ -277,7 +294,7 @@ public class CustomerEndpointTest {
         CustomerDTO customerDTO = getTestCustomerDto();
 
 
-        webTestClient.put()
+        authenticatedClientWithCsrf().put()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, "missing-id")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(customerDTO)
@@ -303,7 +320,7 @@ public class CustomerEndpointTest {
             }
             """;
 
-        webTestClient.put()
+        authenticatedClientWithCsrf().put()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, savedTestCustomer.getCustomerId())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(malformedJson)
@@ -329,7 +346,7 @@ public class CustomerEndpointTest {
 
 
 
-        webTestClient.patch()
+        authenticatedClientWithCsrf().patch()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, savedCustomer.getCustomerId())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(patchedPayloadCustomer)
@@ -354,7 +371,7 @@ public class CustomerEndpointTest {
         patchedPayloadCustomer.setCustomerName("Updated Space Dust");
 
 
-        webTestClient.patch()
+        authenticatedClientWithCsrf().patch()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, "missing-id")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(patchedPayloadCustomer)
@@ -379,7 +396,7 @@ public class CustomerEndpointTest {
             }
             """;
 
-        webTestClient.patch()
+        authenticatedClientWithCsrf().patch()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, savedCustomer.getCustomerId())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(malformedJson)
@@ -400,8 +417,7 @@ public class CustomerEndpointTest {
     void givenExistingCustomerId_whenDeleteCustomer_thenReturnDeletedCustomer() {
         CustomerDTO savedCustomer = saveTestCustomer();
 
-
-        webTestClient.delete()
+        authenticatedClientWithCsrf().delete()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, savedCustomer.getCustomerId())
                 .exchange()
                 .expectStatus().isOk()
@@ -424,12 +440,12 @@ public class CustomerEndpointTest {
         CustomerDTO savedCustomer = saveTestCustomer();
 
 
-        webTestClient.delete()
+        authenticatedClientWithCsrf().delete()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, savedCustomer.getCustomerId())
                 .exchange()
                 .expectStatus().isOk();
 
-        webTestClient.get()
+        authenticatedClient().get()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, savedCustomer.getCustomerId())
                 .exchange()
                 .expectStatus().isNotFound();
@@ -443,7 +459,7 @@ public class CustomerEndpointTest {
     @Test
     @DisplayName("given missing customer id when delete customer then return not found")
     void givenMissingCustomerId_whenDeleteCustomer_thenReturnNotFound() {
-        webTestClient.delete()
+        authenticatedClientWithCsrf().delete()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH_ID, "missing-id")
                 .exchange()
                 .expectStatus().isNotFound();
@@ -454,7 +470,7 @@ public class CustomerEndpointTest {
      * This helper guarantees that the returned customer is the exact created customer.
      */
     private CustomerDTO saveTestCustomer() {
-        CustomerDTO savedCustomer = webTestClient.post()
+        CustomerDTO savedCustomer = authenticatedClientWithCsrf().post()
                 .uri(CustomerRouterConfig.CUSTOMER_PATH)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(getTestCustomerDto())
@@ -475,6 +491,36 @@ public class CustomerEndpointTest {
         }
 
         return savedCustomer;
+    }
+
+    /**
+     * Returns a WebTestClient configured with a mocked authenticated JWT.
+     *
+     * Use this helper for safe requests such as GET.
+     *
+     * Notes:
+     * - this application is secured as an OAuth2 resource server
+     * - in tests, mockJwt() simulates a successfully authenticated JWT request
+     * - explicit claims make the test principal easier to inspect while debugging
+     */
+    private WebTestClient authenticatedClient() {
+        return webTestClient.mutateWith(
+                mockJwt().jwt(jwt -> jwt
+                        .subject("test-user")
+                        .claim("scope", "beer.read beer.write")
+                )
+        );
+    }
+
+    private WebTestClient authenticatedClientWithCsrf() {
+
+        return webTestClient.mutateWith(
+                mockJwt().jwt(jwt -> jwt
+                        .subject("test-user")
+                        .claim("scope","customer.read customer.write")
+
+                )
+        ).mutateWith(csrf());
     }
 
     /**
