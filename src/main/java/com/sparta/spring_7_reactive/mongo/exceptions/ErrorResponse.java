@@ -6,15 +6,5 @@ package com.sparta.spring_7_reactive.mongo.exceptions;
  * Project Name: mongo
  * Description: beExcellent
  */
-public class ErrorResponse {
-
-    private final String message;
-
-    public ErrorResponse(String message) {
-        this.message = message;
-    }
-
-    public String message() {
-        return message;
-    }
+public record ErrorResponse(String message) {
 }
